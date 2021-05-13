@@ -94,6 +94,64 @@ int main()
 
 	lection4_multipl_matrix(context, status, queue, kernel, matrix1, matrix2, resultMatrix, NKM);
 
+	auto matrix1Rows = NKM[2];
+	auto matrix1Columns = NKM[1];
+	auto matrix2Rows = NKM[1];
+	auto matrix2Columns = NKM[0];
+
+	for (int i = 0; i < matrix1Rows; i++)
+	{
+		for (int j = 0; j < matrix2Columns; j++)
+		{
+			printf("\nresultMatrix[%d][%d] = %f ", i, j, resultMatrix[i * matrix1Rows + j]);
+
+		}
+	}
+
+	vector<char> outputData;
+
+	char N = (char)(matrix2Columns | 48);
+	char M = (char)(matrix1Rows | 48);
+
+	outputData.push_back(N);
+	outputData.push_back(' ');
+	outputData.push_back(M);
+	outputData.push_back('\r');
+	outputData.push_back('\n');
+
+	int increment = 0;
+	for (size_t i = 0; i < matrix1Rows; i++)//мнимые циклы
+	{
+		for (size_t j = 0; j < matrix2Columns; j++)
+		{
+			char* char_arr;
+			string str_obj(to_string(resultMatrix[increment]));
+			char_arr = &str_obj[0];
+
+
+			outputData.insert(outputData.end(), char_arr, char_arr + strlen(char_arr));
+			outputData.push_back(' ');
+
+			increment++;
+		}
+		outputData.pop_back();
+		outputData.push_back('\r');
+		outputData.push_back('\n');
+
+	}
+	outputData.pop_back();
+	outputData.pop_back();
+
+	char* outputArray = &outputData[0];
+
+
+	//outputData.push_back()
+
+	fstream bin("C:\\Users\\black\\Desktop\\matrixResult.txt", ios::out | ios::binary);
+	bin.write(outputArray, sizeof(char) * outputData.size());
+	bin.close();
+
+
 	return 0;
 }
 
@@ -121,15 +179,27 @@ void lection4_multipl_matrix(cl_context context, cl_int status, cl_command_queue
 			printf("\nc[%d][%d] = %d ", i, j, c[i*3 + j]);
 
 		}
-	}*/
-
+	}
+	
 	for (size_t i = 0; i < 9; i++)
 	{
 		printf("\nc[%d] = %f ", i, resultMatrix[i]);
 	}
+	for (size_t i = 0; i < 6; i++)
+	{
+		printf("\nc[%d] = %f ", i, matrix1[i]);
+	}
+	for (size_t i = 0; i < 6; i++)
+	{
+		printf("\nc[%d] = %f ", i, matrix2[i]);
+	}
+	
+	
+	*/
 
-	//float a[6] = { 1.0, 2, 3, 4, 5, 6 }; //(3;2)
-	//float b[6] = { 1, 2, 3, 4, 5, 6 };//(2;3)
+
+	//float a[6] = { 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 }; //(3;2)
+	//float b[6] = { 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 };//(2;3)
 	//float* c = (float*)malloc(sizeof(float) * 9);
 
 	auto matrix1Rows = NKM[2];
@@ -145,19 +215,19 @@ void lection4_multipl_matrix(cl_context context, cl_int status, cl_command_queue
 	//clReleaseMemObject
 
 	status = clEnqueueWriteBuffer(queue, arg_buffer_a, CL_FALSE, 0, sizeof(float) * matrix1ElementsCount,
-		&matrix1, 0, NULL, NULL);
+		matrix1, 0, NULL, NULL);
 
 	cl_mem arg_buffer_b = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float) * matrix2ElementsCount, NULL, &status);
 	//clReleaseMemObject
 
 	status = clEnqueueWriteBuffer(queue, arg_buffer_b, CL_FALSE, 0, sizeof(float) * matrix2ElementsCount,
-		&matrix2, 0, NULL, NULL);
+		matrix2, 0, NULL, NULL);
 
 	cl_mem arg_buffer_c = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float) * resultMatrixCapacity, NULL, &status);
 	//clReleaseMemObject
 
 	status = clEnqueueWriteBuffer(queue, arg_buffer_c, CL_FALSE, 0, sizeof(float) * resultMatrixCapacity,
-		&resultMatrix, 0, NULL, NULL);
+		resultMatrix, 0, NULL, NULL);
 
 	//int wA = 2;
 	//int wB = 3;
@@ -189,16 +259,14 @@ void lection4_multipl_matrix(cl_context context, cl_int status, cl_command_queue
 
 	gpuTime = (double)(gend - gstart) / 1000000000.0;
 
-
-
-	for (int i = 0; i < matrix1Rows; i++)
+	/*for (int i = 0; i < matrix1Rows; i++)
 	{
 		for (int j = 0; j < matrix2Columns; j++)
 		{
-			printf("\nc[%d][%d] = %f ", i, j, resultMatrix[i * matrix1Rows + j]);
+			printf("\nresultMatrix[%d][%d] = %f ", i, j, resultMatrix[i * matrix1Rows + j]);
 
 		}
-	}
+	}*/
 }
 
 void get_matrixs_from_file(string input_file_path, int NKM[], float*& matrix1, float*& matrix2, float*& resultMatrix) {
