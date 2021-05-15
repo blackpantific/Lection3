@@ -24,5 +24,23 @@ kernel void matrix_multiplication(global const float* a, global const float* b, 
    }
 
    c[ty * wB + tx] = value;
+   //printf("\n%f", value);
+}
 
+kernel void transpose_matrix_multiplication(global const float* a, global const float* b, global float* c,
+			int wA, int wB, int widthOfResultMatrix)
+{
+	int tx = get_global_id(0);//j по столбцам
+	int ty = get_global_id(1);//i по строкам
+
+   float value = 0.0;
+   for (int k = 0; k < wA; ++k)
+   {
+      float elementA = a[ty * wA + k];//удалить объ€вление переменной
+      float elementB = b[tx * wB + k];
+      value += elementA * elementB;
+   }
+
+   c[ty * widthOfResultMatrix + tx] = value;//можно ли тут подшаманить с выводом и записывать тоже сначала в лок пам€ть, а потом в глобальную на вывод?
+   //printf("\n%f", value);
 }

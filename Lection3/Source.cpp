@@ -20,7 +20,11 @@ void lection3_computing_sum(cl_context context, cl_int status, cl_command_queue 
 void lection4_computing_sum_arrays(cl_context context, cl_int status, cl_command_queue queue, cl_kernel kernel);
 void lection4_multipl_matrix(cl_context context, cl_int status, cl_command_queue queue, cl_kernel kernel,
 	float*& matrix1, float*& matrix2, float*& resultMatrix, int* NKM);
+void lection4__transpose_multipl_matrix(cl_context context, cl_int status, cl_command_queue queue, cl_kernel kernel,
+	float*& matrix1, float*& matrix2, float*& resultMatrix, int* NKM);
 void get_matrixs_from_file(string input_file_path, int NKM[], float*& matrix1, float*& matrix2, float*& resultMatrix);
+void get_matrixs_transpose_from_file(string input_file_path, int NKM[],
+	float*& matrix1, float*& matrix2, float*& resultMatrix);
 
 int main()
 {
@@ -35,8 +39,10 @@ int main()
 	float* matrix2 = 0;
 	float* resultMatrix = 0;
 
-	get_matrixs_from_file(pathInputFile, NKM, matrix1, matrix2, resultMatrix);//получаем данные по матрицам из файла
-
+	//get_matrixs_from_file(pathInputFile, NKM, matrix1, matrix2, resultMatrix);//получаем данные по матрицам из файла
+	
+	
+	get_matrixs_transpose_from_file(pathInputFile, NKM, matrix1, matrix2, resultMatrix);
 
 	cl_platform_id platformID;
 	cl_device_id deviceID = InformationAboutDevice(&platformID, numberOfDevice);
@@ -90,32 +96,45 @@ int main()
 	}
 
 	cl_kernel kernel;
-	kernel = clCreateKernel(program, "matrix_multiplication", &status);//ошибка обнаруживается тут
 
-	lection4_multipl_matrix(context, status, queue, kernel, matrix1, matrix2, resultMatrix, NKM);
+	//kernel = clCreateKernel(program, "matrix_multiplication", &status);//ошибка обнаруживается тут
+	kernel = clCreateKernel(program, "transpose_matrix_multiplication", &status);//ошибка обнаруживается тут
+
+	//lection4_multipl_matrix(context, status, queue, kernel, matrix1, matrix2, resultMatrix, NKM);
+	lection4__transpose_multipl_matrix(context, status, queue, kernel, matrix1, matrix2, resultMatrix, NKM);
+
+
+
+	/// <summary>
+	/// ЗАПИСЬ В ФАЙЛ
+	/// </summary>
+	/// <returns></returns>
 
 	auto matrix1Rows = NKM[2];
 	auto matrix1Columns = NKM[1];
 	auto matrix2Rows = NKM[1];
 	auto matrix2Columns = NKM[0];
 
-	for (int i = 0; i < matrix1Rows; i++)
+	/*for (int i = 0; i < matrix1Rows; i++)
 	{
 		for (int j = 0; j < matrix2Columns; j++)
 		{
 			printf("\nresultMatrix[%d][%d] = %f ", i, j, resultMatrix[i * matrix1Rows + j]);
 
 		}
-	}
+	}*/
 
 	vector<char> outputData;
 
-	char N = (char)(matrix2Columns | 48);
-	char M = (char)(matrix1Rows | 48);
+	string tmp = to_string(matrix2Columns);
+	char const* N = tmp.c_str();
 
-	outputData.push_back(N);
+	tmp = to_string(matrix1Rows);
+	char const* M = tmp.c_str();
+
+	outputData.insert(outputData.end(), N, N + strlen(N));
 	outputData.push_back(' ');
-	outputData.push_back(M);
+	outputData.insert(outputData.end(), M, M + strlen(M));
 	outputData.push_back('\r');
 	outputData.push_back('\n');
 
@@ -155,6 +174,93 @@ int main()
 	return 0;
 }
 
+void lection4__transpose_multipl_matrix(cl_context context, cl_int status, cl_command_queue queue, cl_kernel kernel,
+	float*& matrix1, float*& matrix2, float*& resultMatrix, int* NKM)
+{
+
+	double start_time, end_time;
+
+	auto matrix1Rows = NKM[2];
+	auto matrix1Columns = NKM[1];
+	auto matrix2Rows = NKM[0];//в отличие от нетранспонированной матрицы эти значения меняются
+	auto matrix2Columns = NKM[1];//в отличие от нетранспонированной матрицы эти значения меняются
+
+	auto matrix1ElementsCount = matrix1Rows * matrix1Columns;
+	auto matrix2ElementsCount = matrix2Rows * matrix2Columns;
+	auto resultMatrixCapacity = matrix1Rows * matrix2Rows;//в отличие от нетранспонированной матрицы эти значения меняются
+
+	//for (size_t i = 0; i < matrix2ElementsCount; i++)
+	//{
+	//	printf("\n mattrix2[%d] = %f", i, matrix2[i]);
+	//}
+
+
+	start_time = omp_get_wtime();//отсчет времени от начала передачи данных с хоста на девайс
+
+	/// <summary>
+	/// Буффер находится на девайсе, поэтому передача данных с хоста на девайс выполняется уже
+	/// в функции clEnqueueWriteBuffer
+	/// </summary>
+	cl_mem arg_buffer_a = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float) * matrix1ElementsCount, NULL, &status);
+	//clReleaseMemObject
+
+	status = clEnqueueWriteBuffer(queue, arg_buffer_a, CL_FALSE, 0, sizeof(float) * matrix1ElementsCount,
+		matrix1, 0, NULL, NULL);
+
+	cl_mem arg_buffer_b = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float) * matrix2ElementsCount, NULL, &status);
+	//clReleaseMemObject
+
+	status = clEnqueueWriteBuffer(queue, arg_buffer_b, CL_FALSE, 0, sizeof(float) * matrix2ElementsCount,
+		matrix2, 0, NULL, NULL);
+
+	cl_mem arg_buffer_c = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float) * resultMatrixCapacity, NULL, &status);
+	//clReleaseMemObject
+
+	status = clEnqueueWriteBuffer(queue, arg_buffer_c, CL_FALSE, 0, sizeof(float) * resultMatrixCapacity,
+		resultMatrix, 0, NULL, NULL);
+
+	//int wA = 2;
+	//int wB = 3;
+
+
+	status = clSetKernelArg(kernel, 0, sizeof(cl_mem), &arg_buffer_a);
+	status |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &arg_buffer_b);
+	status |= clSetKernelArg(kernel, 2, sizeof(cl_mem), &arg_buffer_c);
+	status |= clSetKernelArg(kernel, 3, sizeof(int), &matrix1Columns);
+	status |= clSetKernelArg(kernel, 4, sizeof(int), &matrix2Columns);
+	status |= clSetKernelArg(kernel, 5, sizeof(int), &matrix2Rows);//ширина результирующей матрицы
+
+	size_t dimentions = 2;
+	size_t global_work_size[2];
+	global_work_size[0] = matrix1Rows;
+	global_work_size[1] = matrix2Rows;//в отличие от нетранспонированной матрицы эти значения меняются
+
+	cl_event ourEvent = 0;
+
+	status = clEnqueueNDRangeKernel(queue, kernel, dimentions, NULL, global_work_size, NULL, 0,
+		NULL, &ourEvent);
+
+	/// <summary>
+	/// В данной функции мы получаем данные с девайса на хост, поэтому после этой функции мы заканчиваем
+	/// подсчет общего времени выполнения
+	/// </summary>
+	status = clEnqueueReadBuffer(queue, arg_buffer_c, CL_TRUE, 0,
+		sizeof(int) * resultMatrixCapacity, resultMatrix, 0, NULL, NULL);//самый последний ReadBuffer должен быть синхронным(CL_TRUE)
+
+
+	end_time = omp_get_wtime();
+	auto timeSingle = end_time - start_time;
+
+	cl_ulong gstart, gend;
+
+	status = clGetEventProfilingInfo(ourEvent, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &gstart, NULL);
+	status = clGetEventProfilingInfo(ourEvent, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &gend, NULL);
+
+	double nanoSeconds = gend - gstart;
+	printf("\nTime: %f\t%f \n", nanoSeconds / 1000000.0, timeSingle * 1000);
+
+}
+
 void lection4_multipl_matrix(cl_context context, cl_int status, cl_command_queue queue, cl_kernel kernel,
 	float*& matrix1, float*& matrix2, float*& resultMatrix, int* NKM)
 {
@@ -180,7 +286,7 @@ void lection4_multipl_matrix(cl_context context, cl_int status, cl_command_queue
 
 		}
 	}
-	
+
 	for (size_t i = 0; i < 9; i++)
 	{
 		printf("\nc[%d] = %f ", i, resultMatrix[i]);
@@ -193,14 +299,16 @@ void lection4_multipl_matrix(cl_context context, cl_int status, cl_command_queue
 	{
 		printf("\nc[%d] = %f ", i, matrix2[i]);
 	}
-	
-	
+
+
 	*/
 
 
 	//float a[6] = { 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 }; //(3;2)
 	//float b[6] = { 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 };//(2;3)
 	//float* c = (float*)malloc(sizeof(float) * 9);
+
+	double start_time, end_time;
 
 	auto matrix1Rows = NKM[2];
 	auto matrix1Columns = NKM[1];
@@ -211,6 +319,13 @@ void lection4_multipl_matrix(cl_context context, cl_int status, cl_command_queue
 	auto matrix2ElementsCount = matrix2Rows * matrix2Columns;
 	auto resultMatrixCapacity = matrix1Rows * matrix2Columns;
 
+
+	start_time = omp_get_wtime();//отсчет времени от начала передачи данных с хоста на девайс
+
+	/// <summary>
+	/// Буффер находится на девайсе, поэтому передача данных с хоста на девайс выполняется уже
+	/// в функции clEnqueueWriteBuffer
+	/// </summary>
 	cl_mem arg_buffer_a = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float) * matrix1ElementsCount, NULL, &status);
 	//clReleaseMemObject
 
@@ -232,6 +347,7 @@ void lection4_multipl_matrix(cl_context context, cl_int status, cl_command_queue
 	//int wA = 2;
 	//int wB = 3;
 
+
 	status = clSetKernelArg(kernel, 0, sizeof(cl_mem), &arg_buffer_a);
 	status |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &arg_buffer_b);
 	status |= clSetKernelArg(kernel, 2, sizeof(cl_mem), &arg_buffer_c);
@@ -248,25 +364,211 @@ void lection4_multipl_matrix(cl_context context, cl_int status, cl_command_queue
 	status = clEnqueueNDRangeKernel(queue, kernel, dimentions, NULL, global_work_size, NULL, 0,
 		NULL, &ourEvent);
 
+	/// <summary>
+	/// В данной функции мы получаем данные с девайса на хост, поэтому после этой функции мы заканчиваем
+	/// подсчет общего времени выполнения
+	/// </summary>
 	status = clEnqueueReadBuffer(queue, arg_buffer_c, CL_TRUE, 0,
 		sizeof(int) * resultMatrixCapacity, resultMatrix, 0, NULL, NULL);//самый последний ReadBuffer должен быть синхронным(CL_TRUE)
 
+
+	end_time = omp_get_wtime();
+	auto timeSingle = end_time - start_time;
+
 	cl_ulong gstart, gend;
-	double gpuTime;
 
 	status = clGetEventProfilingInfo(ourEvent, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &gstart, NULL);
 	status = clGetEventProfilingInfo(ourEvent, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &gend, NULL);
 
-	gpuTime = (double)(gend - gstart) / 1000000000.0;
+	double nanoSeconds = gend - gstart;
+	printf("\nTime: %f\t%f \n", nanoSeconds / 1000000.0, timeSingle * 1000);
 
-	/*for (int i = 0; i < matrix1Rows; i++)
+}
+
+void get_matrixs_transpose_from_file(string input_file_path, int NKM[], float*& matrix1, float*& matrix2, float*& resultMatrix) {
+
+	char* bufIterator = NULL;
+	char* buf = NULL;
+	float** matrix2Temp;
+	float** matrix2TempTranspose;
+
+	ifstream in("C:\\Users\\black\\Desktop\\matrix.txt", ios::binary);
+	int size = in.seekg(0, ios::end).tellg();
+	if (size == -1)
+		throw "File is empty";
+	in.seekg(0);
+	buf = new char[size + 1];
+	in.read(buf, size);
+	buf[size] = 0;
+	bufIterator = buf;
+	in.close();
+	string tempString = "";
+
+	while (true) {
+
+
+		if (*bufIterator == ' ' || *bufIterator == 13) {
+
+
+			if (NKM[0] == 0) {
+				NKM[0] = stoi(tempString);
+				tempString = "";
+			}
+			else
+				if (NKM[1] == 0) {
+					NKM[1] = stoi(tempString);
+					tempString = "";
+				}
+				else
+					if (NKM[2] == 0) {
+						NKM[2] = stoi(tempString);
+						tempString = "";
+					}
+
+			if (*bufIterator == ' ') {
+				bufIterator++;
+			}
+			else {
+				bufIterator++;
+				bufIterator++;
+				break;
+			}
+
+		}
+		else {
+			tempString += *bufIterator;
+			bufIterator++;
+		}
+
+	}
+
+	auto matrix1Rows = NKM[2];
+	auto matrix1Columns = NKM[1];
+	auto matrix2Rows = NKM[1];
+	auto matrix2Columns = NKM[0];
+
+	auto matrix1ElementsCount = matrix1Rows * matrix1Columns;
+	auto matrix2ElementsCount = matrix2Rows * matrix2Columns;
+
+	matrix1 = (float*)calloc(matrix1ElementsCount, sizeof(float));
+	matrix2 = (float*)calloc(matrix2ElementsCount, sizeof(float));
+	matrix2Temp = (float**)calloc(matrix2Rows, sizeof(float*));
+
+	int i = 0;
+	while (i != matrix1ElementsCount) {
+
+		if ((int)*bufIterator != 32 && (int)*bufIterator != 13 && (int)*bufIterator != 10 && *bufIterator != '\0')
+		{
+			tempString += *bufIterator;
+			bufIterator++;
+
+		}
+		else
+		{
+			if (tempString == "")
+			{
+				throw "Wrong number exception";
+			}
+			matrix1[i] = stod(tempString);
+			i++;
+			bufIterator++;
+			tempString = "";
+		}
+		if ((int)*bufIterator == 10)
+		{
+			bufIterator++;
+		}
+
+	}
+
+	for (int i = 0; i < matrix2Rows; i++)
+	{
+		matrix2Temp[i] = (float*)calloc(matrix2Columns, sizeof(float));
+
+		int j = 0;
+		while (j != matrix2Columns)
+		{
+			if ((int)*bufIterator != 32 && (int)*bufIterator != 13 && (int)*bufIterator != 10 && *bufIterator != '\0')
+			{
+				tempString += *bufIterator;
+				bufIterator++;
+
+			}
+			else
+			{
+				if (tempString == "")
+				{
+					throw "Wrong number exception";
+				}
+				matrix2Temp[i][j] = stod(tempString);
+				j += 1;
+				bufIterator++;
+				tempString = "";
+			}
+			if (j == matrix2Columns)
+			{
+				bufIterator++;
+			}
+
+		}
+	}
+
+
+	//for (size_t i = 0; i < matrix2Rows; i++)
+	//{
+	//	for (size_t j = 0; j < matrix2Columns; j++)
+	//	{
+	//		printf("\nmatrix2[%i][%i] = %f", i, j, matrix2Temp[i][j]);
+	//	}
+	//}
+
+	//транспонируем 2 матрицу
+
+	matrix2TempTranspose = (float**)calloc(matrix2Columns, sizeof(float*));
+
+	for (size_t i = 0; i < matrix2Columns; i++)
+	{
+		matrix2TempTranspose[i] = (float*)calloc(matrix2Rows, sizeof(float));
+	}
+
+
+	float t = 0.0;
+	for (int i = 0; i < matrix2Rows; i++)
 	{
 		for (int j = 0; j < matrix2Columns; j++)
 		{
-			printf("\nresultMatrix[%d][%d] = %f ", i, j, resultMatrix[i * matrix1Rows + j]);
+			matrix2TempTranspose[j][i] = matrix2Temp[i][j];
+		}
+	}
 
+	/*for (size_t i = 0; i < matrix2Columns; i++)
+	{
+		for (size_t j = 0; j < matrix2Rows; j++)
+		{
+			printf("\nmatrix2[%i][%i] = %f", i, j, matrix2TempTranspose[i][j]);
 		}
 	}*/
+
+	int iterator = 0;
+	for (size_t i = 0; i < matrix2Columns; i++)
+	{
+		for (size_t j = 0; j < matrix2Rows; j++)
+		{
+			matrix2[iterator] = matrix2TempTranspose[i][j];
+			iterator++;
+		}
+	}
+
+	//for (size_t i = 0; i < matrix2ElementsCount; i++)
+	//{
+	//	printf("\n mattrix2[%d] = %f", i, matrix2[i]);
+	//}
+
+
+
+	int resultMatrixCapacity = matrix1Rows * matrix2Columns;
+
+	resultMatrix = (float*)calloc(resultMatrixCapacity, sizeof(float));
 }
 
 void get_matrixs_from_file(string input_file_path, int NKM[], float*& matrix1, float*& matrix2, float*& resultMatrix) {
@@ -363,13 +665,13 @@ void get_matrixs_from_file(string input_file_path, int NKM[], float*& matrix1, f
 	}
 
 
-	for (size_t i = 0; i < matrix1ElementsCount; i++)
+	/*for (size_t i = 0; i < matrix1ElementsCount; i++)
 	{
 		cout << endl;
 		printf("matrix1[%i] = %f", i, matrix1[i]);
 	}
 
-	cout << endl;
+	cout << endl;*/
 
 	i = 0;
 	while (i != matrix2ElementsCount) {
@@ -399,11 +701,11 @@ void get_matrixs_from_file(string input_file_path, int NKM[], float*& matrix1, f
 	}
 
 
-	for (size_t i = 0; i < matrix2ElementsCount; i++)
+	/*for (size_t i = 0; i < matrix2ElementsCount; i++)
 	{
 		cout << endl;
 		printf("matrix2[%i] = %f", i, matrix2[i]);
-	}
+	}*/
 
 	int resultMatrixCapacity = matrix1Rows * matrix2Columns;
 
