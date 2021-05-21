@@ -36,9 +36,9 @@ kernel void transpose_matrix_multiplication(global const float* a, global const 
    float value = 0.0;
    for (int k = 0; k < wA; ++k)
    {
-      float elementA = a[ty * wA + k];//удалить объявление переменной
-      float elementB = b[tx * wB + k];
-      value += elementA * elementB;
+      //float elementA = a[ty * wA + k];//удалить объявление переменной
+      //float elementB = b[tx * wB + k];
+      value += a[ty * wA + k] * b[tx * wB + k];
    }
 
    c[ty * widthOfResultMatrix + tx] = value;//можно ли тут подшаманить с выводом и записывать тоже сначала в лок память, а потом в глобальную на вывод?

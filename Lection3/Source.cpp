@@ -12,6 +12,7 @@
 #include <string>
 
 
+
 using namespace std;
 
 void InformationAboutPlatforms();
@@ -19,12 +20,15 @@ cl_device_id InformationAboutDevice(cl_platform_id* platformID, int numberOfDevi
 void lection3_computing_sum(cl_context context, cl_int status, cl_command_queue queue, cl_kernel kernel);
 void lection4_computing_sum_arrays(cl_context context, cl_int status, cl_command_queue queue, cl_kernel kernel);
 void lection4_multipl_matrix(cl_context context, cl_int status, cl_command_queue queue, cl_kernel kernel,
-	float*& matrix1, float*& matrix2, float*& resultMatrix, int* NKM);
+	float*& matrix1, float*& matrix2, float*& resultMatrix, int* NKM, cl_device_id deviceID);
 void lection4__transpose_multipl_matrix(cl_context context, cl_int status, cl_command_queue queue, cl_kernel kernel,
 	float*& matrix1, float*& matrix2, float*& resultMatrix, int* NKM);
 void get_matrixs_from_file(string input_file_path, int NKM[], float*& matrix1, float*& matrix2, float*& resultMatrix);
 void get_matrixs_transpose_from_file(string input_file_path, int NKM[],
 	float*& matrix1, float*& matrix2, float*& resultMatrix);
+
+void DeviceInfo(cl_device_id deviceID);
+void KernelInfo(cl_kernel kernel, cl_device_id deviceID);
 
 int main()
 {
@@ -33,16 +37,22 @@ int main()
 	string pathOutputFile = "C:\\Users\\black\\Desktop\\matrixResult.txt";
 	int numberOfRealization = 0;//by default
 
+
+
 	int NKM[3] = { 0,0,0 };
 
 	float* matrix1 = 0;
 	float* matrix2 = 0;
 	float* resultMatrix = 0;
 
-	//get_matrixs_from_file(pathInputFile, NKM, matrix1, matrix2, resultMatrix);//получаем данные по матрицам из файла
+
+	if (numberOfRealization == 0) {
+		get_matrixs_from_file(pathInputFile, NKM, matrix1, matrix2, resultMatrix);//получаем данные по матрицам из файла
+	}
+	else {
+		get_matrixs_transpose_from_file(pathInputFile, NKM, matrix1, matrix2, resultMatrix);
+	}
 	
-	
-	get_matrixs_transpose_from_file(pathInputFile, NKM, matrix1, matrix2, resultMatrix);
 
 	cl_platform_id platformID;
 	cl_device_id deviceID = InformationAboutDevice(&platformID, numberOfDevice);
@@ -50,14 +60,8 @@ int main()
 	cl_int status;
 	cl_context context;
 	cl_context_properties properties[3] = { CL_CONTEXT_PLATFORM , (cl_context_properties)platformID, 0};
-	size_t deviceNameSize;
-	char* deviceName;
-
-	//display chosen device name
-	status = clGetDeviceInfo(deviceID, CL_DEVICE_NAME, 0, NULL, &deviceNameSize);
-	deviceName = (char*)malloc(deviceNameSize);
-	status = clGetDeviceInfo(deviceID, CL_DEVICE_NAME, deviceNameSize, deviceName, NULL);
-	printf("\nDevice name - %s\n", deviceName);
+	
+	DeviceInfo(deviceID);
 
 	context = clCreateContext(properties, 1, &deviceID, NULL, NULL, &status);
 
@@ -97,11 +101,26 @@ int main()
 
 	cl_kernel kernel;
 
-	//kernel = clCreateKernel(program, "matrix_multiplication", &status);//ошибка обнаруживается тут
-	kernel = clCreateKernel(program, "transpose_matrix_multiplication", &status);//ошибка обнаруживается тут
 
-	//lection4_multipl_matrix(context, status, queue, kernel, matrix1, matrix2, resultMatrix, NKM);
-	lection4__transpose_multipl_matrix(context, status, queue, kernel, matrix1, matrix2, resultMatrix, NKM);
+	if (numberOfRealization == 0) {
+		kernel = clCreateKernel(program, "matrix_multiplication", &status);//ошибка обнаруживается тут
+	}
+	else {
+		kernel = clCreateKernel(program, "transpose_matrix_multiplication", &status);//ошибка обнаруживается тут
+	}
+	
+
+	KernelInfo(kernel, deviceID);
+
+	
+	if (numberOfRealization == 0) {
+		lection4_multipl_matrix(context, status, queue, kernel, matrix1, matrix2, resultMatrix, NKM, deviceID);
+	}
+	else {
+		lection4__transpose_multipl_matrix(context, status, queue, kernel, matrix1, matrix2, resultMatrix, NKM);
+	}
+	
+	
 
 
 
@@ -165,11 +184,19 @@ int main()
 
 
 	//outputData.push_back()
-
-	fstream bin("C:\\Users\\black\\Desktop\\matrixResult.txt", ios::out | ios::binary);
-	bin.write(outputArray, sizeof(char) * outputData.size());
-	bin.close();
-
+	if (numberOfRealization == 0) {
+		fstream bin("C:\\Users\\black\\Desktop\\matrixResult.txt", ios::out | ios::binary);
+		bin.write(outputArray, sizeof(char) * outputData.size());
+		bin.close();
+	}
+	else {
+		fstream bin("C:\\Users\\black\\Desktop\\matrixResult1.txt", ios::out | ios::binary);
+		bin.write(outputArray, sizeof(char) * outputData.size());
+		bin.close();
+	}
+	
+	//ПРИМЕРЫ ОЧИСТКИ ПАМЯТИ
+//https://cpp.hotexamples.com/ru/examples/-/-/clCreateContext/cpp-clcreatecontext-function-examples.html
 
 	return 0;
 }
@@ -262,7 +289,7 @@ void lection4__transpose_multipl_matrix(cl_context context, cl_int status, cl_co
 }
 
 void lection4_multipl_matrix(cl_context context, cl_int status, cl_command_queue queue, cl_kernel kernel,
-	float*& matrix1, float*& matrix2, float*& resultMatrix, int* NKM)
+	float*& matrix1, float*& matrix2, float*& resultMatrix, int* NKM, cl_device_id deviceID)
 {
 
 	/*for (int i = 0; i < 3; i++)
@@ -359,7 +386,12 @@ void lection4_multipl_matrix(cl_context context, cl_int status, cl_command_queue
 	global_work_size[0] = matrix1Rows;
 	global_work_size[1] = matrix2Columns;
 
+	//size_t local_work_size[2];//неправильные значения
+	//global_work_size[0] = (size_t)4;
+	//global_work_size[1] = (size_t)4;
+
 	cl_event ourEvent = 0;
+
 
 	status = clEnqueueNDRangeKernel(queue, kernel, dimentions, NULL, global_work_size, NULL, 0,
 		NULL, &ourEvent);
@@ -952,3 +984,87 @@ void InformationAboutPlatforms()
 
 }
 
+void DeviceInfo(cl_device_id deviceID) {//вывод инфы в консоль 
+
+	/////////////////////////////////////DEVICE INFO/////////////////////////////////////
+
+	//display chosen device name
+	size_t deviceNameSize;
+	cl_int status = 0;
+	status = clGetDeviceInfo(deviceID, CL_DEVICE_NAME, 0, NULL, &deviceNameSize);
+	char* deviceName = (char*)malloc(deviceNameSize);
+	status = clGetDeviceInfo(deviceID, CL_DEVICE_NAME, deviceNameSize, deviceName, NULL);
+	printf("\nDevice name - %s\n", deviceName);
+
+	//kernel numbers
+	size_t kernelsNumberSize;
+	status = clGetDeviceInfo(deviceID, CL_DEVICE_BUILT_IN_KERNELS, 0, NULL, &kernelsNumberSize);
+	char* kernels = (char*)malloc(kernelsNumberSize);
+	status = clGetDeviceInfo(deviceID, CL_DEVICE_BUILT_IN_KERNELS, kernelsNumberSize, kernels, NULL);
+	printf("\nCL_DEVICE_BUILT_IN_KERNELS - %s\n", kernels);
+
+	//global cache size 
+	cl_ulong globalCacheSize;
+	status = clGetDeviceInfo(deviceID, CL_DEVICE_GLOBAL_MEM_CACHE_SIZE, sizeof(globalCacheSize), &globalCacheSize, NULL);
+	printf("\nCL_DEVICE_GLOBAL_MEM_CACHE_SIZE - %llu bytes\n", (unsigned long long)globalCacheSize);
+
+	//global memory size 
+	cl_ulong globalMemSize;
+	status = clGetDeviceInfo(deviceID, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(globalMemSize), &globalMemSize, NULL);
+	printf("\nCL_DEVICE_GLOBAL_MEM_SIZE - %llu bytes\n", (unsigned long long)globalMemSize);
+
+	//local memory size 
+	cl_ulong localMemSize;
+	status = clGetDeviceInfo(deviceID, CL_DEVICE_LOCAL_MEM_SIZE, sizeof(localMemSize), &localMemSize, NULL);
+	printf("\nCL_DEVICE_LOCAL_MEM_SIZE - %llu bytes\n", (unsigned long long)localMemSize);
+
+	//CL_DEVICE_MAX_COMPUTE_UNITS 
+	cl_uint numberOfComputeUnits;//количество аппаратных групп видеокарты
+	status = clGetDeviceInfo(deviceID, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(numberOfComputeUnits), &numberOfComputeUnits, NULL);
+	printf("\nCL_DEVICE_MAX_COMPUTE_UNITS - %u units\n", (unsigned int)numberOfComputeUnits);
+
+	//CL_DEVICE_MAX_WORK_GROUP_SIZE
+	size_t maxWorkGroupElementsCount;
+	status = clGetDeviceInfo(deviceID, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(maxWorkGroupElementsCount), &maxWorkGroupElementsCount, NULL);
+	printf("\nCL_DEVICE_MAX_WORK_GROUP_SIZE - %u units\n", (unsigned int)maxWorkGroupElementsCount);
+
+	//CL_DEVICE_MAX_WORK_ITEM_SIZES
+	size_t maxWorkItemSize[3];
+	status = clGetDeviceInfo(deviceID, CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(maxWorkItemSize), maxWorkItemSize, NULL);
+	printf("\nCL_DEVICE_MAX_WORK_ITEM_SIZES - %d:%d:%d\n", maxWorkItemSize[0], maxWorkItemSize[1], maxWorkItemSize[2]);
+
+
+	/////////////////////////////////////END DEVICE INFO/////////////////////////////////////
+}
+
+void KernelInfo(cl_kernel kernel, cl_device_id deviceID) {
+
+	/////////////////////////////////////KERNEL INFO/////////////////////////////////////
+
+	//kernel numbers
+	size_t kernelWorkGroupSize;
+	cl_int status = 0;
+	status = clGetKernelWorkGroupInfo(kernel, deviceID, CL_KERNEL_WORK_GROUP_SIZE, sizeof(kernelWorkGroupSize)
+		, &kernelWorkGroupSize, NULL);
+	printf("\nCL_KERNEL_WORK_GROUP_SIZE - %u\n", (unsigned int)kernelWorkGroupSize);
+
+	//kernel local memory size
+	cl_ulong kernelLocalMemSize;
+	status = clGetKernelWorkGroupInfo(kernel, deviceID, CL_KERNEL_LOCAL_MEM_SIZE, sizeof(kernelLocalMemSize)
+		, &kernelLocalMemSize, NULL);
+	printf("\nCL_KERNEL_LOCAL_MEM_SIZE - %llu\n", (unsigned long long)kernelLocalMemSize);
+
+	//kernel numbers
+	size_t kernelPreferredWorkSize;
+	status = clGetKernelWorkGroupInfo(kernel, deviceID, CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE,
+		sizeof(kernelPreferredWorkSize), &kernelPreferredWorkSize, NULL);
+	printf("\nCL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE - %u\n", (unsigned int)kernelPreferredWorkSize);
+
+	//kernel private memory size
+	cl_ulong kernelPrivateMemSize;
+	status = clGetKernelWorkGroupInfo(kernel, deviceID, CL_KERNEL_PRIVATE_MEM_SIZE, sizeof(kernelPrivateMemSize)
+		, &kernelPrivateMemSize, NULL);
+	printf("\nCL_KERNEL_PRIVATE_MEM_SIZE - %llu\n", (unsigned long long)kernelPrivateMemSize);
+
+	/////////////////////////////////////END KERNEL INFO/////////////////////////////////////
+}
